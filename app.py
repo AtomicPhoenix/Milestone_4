@@ -14,7 +14,6 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.metrics import r2_score
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
-server = app.server
 
 # at end of code modify and run with 
 # app.run_server(debug=True) instead of False
@@ -119,10 +118,6 @@ app.layout = html.Div(
     ]
 )
 
-# ----------------------------------------------------------------
-# Callbacks
-# ----------------------------------------------------------------
-
 # A. Parse uploaded data and store
 @app.callback(
     Output('stored-data', 'data'),
@@ -155,7 +150,7 @@ def store_uploaded_data(contents, filename):
     feature_list = df.columns.tolist()
     return data_store, feature_list
 
-# B. Populate target dropdown
+#Populate target dropdown
 @app.callback(
     Output('target-dropdown', 'options'),
     Input('stored-data', 'data')
@@ -166,7 +161,7 @@ def populate_target_options(stored_data):
     numeric_cols = stored_data['numeric_cols']
     return [{'label': col, 'value': col} for col in numeric_cols]
 
-# C. Populate / default radio for categorical
+#Populate / default radio for categorical
 @app.callback(
     Output('categorical-radio', 'options'),
     Output('categorical-radio', 'value'),
@@ -180,7 +175,7 @@ def populate_categorical_radio(stored_data):
     default_val = cat_cols[0] if cat_cols else None
     return options, default_val
 
-# D. Bar chart - average target by categorical
+#Bar chart - average target by categorical
 @app.callback(
     Output('bar-chart-categorical', 'figure'),
     Input('categorical-radio', 'value'),
@@ -215,7 +210,7 @@ def update_bar_chart_categorical(cat_col, target_col, stored_data):
     )
     return fig
 
-# *** E. Correlation bar chart now depends on the selected features. ***
+# Correlation bar chart now depends on the selected features. ***
 @app.callback(
     Output('bar-chart-correlation', 'figure'),
     Input('target-dropdown', 'value'),
@@ -242,10 +237,8 @@ def update_bar_chart_correlation(target_col, all_feature_values, stored_data):
 
     # Filter only numeric columns that are selected
     numeric_cols = df.select_dtypes(include=['int64','float64','int32','float32']).columns
-    # Intersect the selected features with numeric_cols
     numeric_selected = [col for col in selected_features if col in numeric_cols]
 
-    # If user has no numeric features selected or none left after filtering, show empty chart
     if len(numeric_selected) == 0:
         return px.bar(title="No numeric features selected")
 
@@ -261,7 +254,14 @@ def update_bar_chart_correlation(target_col, all_feature_values, stored_data):
         return px.bar(title="No numeric features remain after excluding target")
 
     corr_df = pd.DataFrame(corr_vals)
-    fig = px.bar(corr_df, x='column', y='corr_value', title="Correlation (Selected Numeric Features)")
+    
+    # Dynamically set the title to reflect the selected target
+    fig = px.bar(
+        corr_df, 
+        x='column', 
+        y='corr_value', 
+        title=f"Correlation of Selected Numeric Features with {target_col}"
+    )
 
     fig.update_traces(
         texttemplate='%{y:.2f}',
@@ -277,7 +277,8 @@ def update_bar_chart_correlation(target_col, all_feature_values, stored_data):
     )
     return fig
 
-# F. Generate feature checkboxes (inline, smaller font)
+
+#Generate feature checkboxes (inline, smaller font)
 @app.callback(
     Output('feature-checkboxes', 'children'),
     Input('feature-list', 'data'),
