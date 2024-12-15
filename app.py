@@ -13,13 +13,13 @@ from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.metrics import r2_score
 
-app=dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
-server = app.server
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+
 # at end of code modify and run with 
 # app.run_server(debug=True) instead of False
 # if run locally but we needed False for streamlit 
 
-app.layout= html.Div(
+app.layout = html.Div(
     className='main-container',
     children=[
 
@@ -27,7 +27,7 @@ app.layout= html.Div(
         dcc.Store(id='trained-pipeline', storage_type='memory'),
         dcc.Store(id='feature-list', storage_type='memory'),
 
-        #upload File Container with fix
+        # Upload File Container
         html.Div(
             className='upload-container',
             children=[
@@ -48,14 +48,13 @@ app.layout= html.Div(
                     id='target-dropdown',
                     options=[],
                     placeholder="Choose target var",
-                    clearable=True,  # show 'x'
+                    clearable=True,
                     className='target-dropdown'
                 ),
             ]
         ),
 
-        # Bar Charts Container
-        #side by side
+        # Bar Charts Container (side by side)
         html.Div(
             className='charts-container',
             children=[
@@ -86,8 +85,7 @@ app.layout= html.Div(
             ]
         ),
 
-
-        #train Container
+        # Train Container
         html.Div(
             className='train-container',
             children=[
@@ -120,8 +118,11 @@ app.layout= html.Div(
     ]
 )
 
-#callbacks
-#Uploaded Data & store in dcc.Store
+# ----------------------------------------------------------------
+# Callbacks
+# ----------------------------------------------------------------
+
+# A. Parse uploaded data and store
 @app.callback(
     Output('stored-data', 'data'),
     Output('feature-list', 'data'),
@@ -134,16 +135,16 @@ def store_uploaded_data(contents, filename):
 
     content_type, content_string = contents.split(',')
     decoded = base64.b64decode(content_string)
-    # UTF-8, fallback to Latin-1
+    # UTF-8 fallback Latin-1
     try:
         decoded_string = decoded.decode('utf-8')
     except UnicodeDecodeError:
         decoded_string = decoded.decode('latin-1')
 
-    df =pd.read_csv(io.StringIO(decoded_string))
+    df = pd.read_csv(io.StringIO(decoded_string))
 
-    numeric_cols =df.select_dtypes(include=['float64', 'int64', 'float32', 'int32']).columns.tolist()
-    categorical_cols= df.select_dtypes(include=['object', 'category']).columns.tolist()
+    numeric_cols = df.select_dtypes(include=['float64', 'int64', 'float32', 'int32']).columns.tolist()
+    categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
 
     data_store = {
         'data': df.to_dict('records'),
@@ -153,7 +154,7 @@ def store_uploaded_data(contents, filename):
     feature_list = df.columns.tolist()
     return data_store, feature_list
 
-#populate target dropdown (numeric columns)
+# B. Populate target dropdown
 @app.callback(
     Output('target-dropdown', 'options'),
     Input('stored-data', 'data')
@@ -164,7 +165,7 @@ def populate_target_options(stored_data):
     numeric_cols = stored_data['numeric_cols']
     return [{'label': col, 'value': col} for col in numeric_cols]
 
-#populate /default radio for categorical
+# C. Populate / default radio for categorical
 @app.callback(
     Output('categorical-radio', 'options'),
     Output('categorical-radio', 'value'),
@@ -173,14 +174,12 @@ def populate_target_options(stored_data):
 def populate_categorical_radio(stored_data):
     if not stored_data:
         return [], None
-    cat_cols =stored_data['categorical_cols']
-    options =[{'label': c, 'value': c} for c in cat_cols]
+    cat_cols = stored_data['categorical_cols']
+    options = [{'label': c, 'value': c} for c in cat_cols]
     default_val = cat_cols[0] if cat_cols else None
     return options, default_val
 
-
-
-#bar chart - average target by categorical
+# D. Bar chart - average target by categorical
 @app.callback(
     Output('bar-chart-categorical', 'figure'),
     Input('categorical-radio', 'value'),
@@ -192,85 +191,92 @@ def update_bar_chart_categorical(cat_col, target_col, stored_data):
         return px.bar(title="No data loaded")
     if cat_col is None or target_col is None:
         return px.bar(title="Awaiting selection")
-    df =pd.DataFrame(stored_data['data'])
+    df = pd.DataFrame(stored_data['data'])
     if cat_col not in df.columns or target_col not in df.columns:
         return px.bar(title="Invalid columns")
 
     avg_df = df.groupby(cat_col)[target_col].mean().reset_index()
     fig = px.bar(avg_df, x=cat_col, y=target_col, title=f"Average {target_col} by {cat_col}")
+
+    # Example styling
     fig.update_traces(
-        texttemplate='%{y:.2f}', 
-        textposition='inside',  #text inside the bar
-        textfont=dict(color='grey'),  #grey text for values
+        texttemplate='%{y:.2f}',
+        textposition='inside',
+        textfont=dict(color='grey'),
         marker=dict(
-            color='rgba(203,223,235,255)',  #fill color for bars
-            line=dict(color='rgb(188,188,191)', width=2)  #dark border (black) with 2px width
+            color='rgba(203,223,235,255)',
+            line=dict(color='rgb(188,188,191)', width=2)
         )
     )
     fig.update_layout(
         autosize=True,
-        height=None,
-        width=None,
-        xaxis=dict(showgrid=False),  #disable vertical grid lines
-        yaxis=dict(showgrid=False, range=[0, avg_df[target_col].max() * 1.2]),  # adjust y-axis range for margin
-        margin=dict(t=50),  #add top margin to prevent clipping
-        shapes=[
-            dict(
-                type="line",
-                x0=x_val, x1=x_val,  # draw vertical line at each x-axis value
-                y0=0, y1=avg_df[target_col].max() * 1.2,  #se max value of `target_col` for y1
-                line=dict(color="rgba(200,200,200,0.5)", width=1, dash="dot")  #light grey dotted line
-            ) for x_val in avg_df[cat_col].unique()  #the x values match unique categories
-        ]
+        margin=dict(t=50)
     )
     return fig
 
-#bar chart - correlation w.r.t target
+# *** E. Correlation bar chart now depends on the selected features. ***
 @app.callback(
     Output('bar-chart-correlation', 'figure'),
     Input('target-dropdown', 'value'),
-    Input('stored-data', 'data')
+    Input({'type': 'feature-checklist', 'index': dash.ALL}, 'value'),  # Listen to selected features
+    State('stored-data', 'data')
 )
-def update_bar_chart_correlation(target_col, stored_data):
+def update_bar_chart_correlation(target_col, all_feature_values, stored_data):
+    """Plot correlation only for the numeric features the user selected (excluding target)."""
     if not stored_data:
         return px.bar(title="No data loaded")
     if not target_col:
         return px.bar(title="Awaiting target")
 
+    # Flatten the selected features
+    selected_features = []
+    for fv in all_feature_values:
+        if fv:
+            selected_features.extend(fv)
+    selected_features = list(set(selected_features))
+
     df = pd.DataFrame(stored_data['data'])
-    numeric_cols = stored_data['numeric_cols']
-    if target_col not in numeric_cols:
+    if target_col not in df.columns:
         return px.bar(title="Invalid target")
 
+    # Filter only numeric columns that are selected
+    numeric_cols = df.select_dtypes(include=['int64','float64','int32','float32']).columns
+    # Intersect the selected features with numeric_cols
+    numeric_selected = [col for col in selected_features if col in numeric_cols]
+
+    # If user has no numeric features selected or none left after filtering, show empty chart
+    if len(numeric_selected) == 0:
+        return px.bar(title="No numeric features selected")
+
     corr_vals = []
-    for col in numeric_cols:
+    for col in numeric_selected:
+        # skip target if included in numeric_selected
         if col == target_col:
             continue
-        corr= df[col].corr(df[target_col])
+        corr = df[col].corr(df[target_col])
         corr_vals.append({'column': col, 'corr_value': abs(corr)})
 
-    corr_df= pd.DataFrame(corr_vals)
-    fig =px.bar(corr_df, x='column', y='corr_value', title=f"Correlation w.r.t {target_col}")
+    if len(corr_vals) == 0:
+        return px.bar(title="No numeric features remain after excluding target")
+
+    corr_df = pd.DataFrame(corr_vals)
+    fig = px.bar(corr_df, x='column', y='corr_value', title="Correlation (Selected Numeric Features)")
+
     fig.update_traces(
-        texttemplate='%{y:.2f}', 
-        textposition='inside',  #place text inside the bar
-        textfont=dict(color='white'),  # white text for values
-        marker=dict(color='rgba(101,110,242,255)')  # Custom bar color
+        texttemplate='%{y:.2f}',
+        textposition='inside',
+        textfont=dict(color='white'),
+        marker=dict(color='rgba(101,110,242,255)')
     )
     fig.update_layout(
         autosize=True,
-        height=None,
-        width=None,
-        xaxis=dict(showgrid=False),  # disable vertical grid lines
-        yaxis=dict(showgrid=True, range=[0, corr_df['corr_value'].max() * 1.2]),  #djust y-axis range for margin
-        margin=dict(t=50)  #add top margin to prevent clipping
+        margin=dict(t=50),
+        xaxis=dict(showgrid=False),
+        yaxis=dict(showgrid=True, range=[0, corr_df['corr_value'].max() * 1.2])
     )
-
-
-
     return fig
 
-#generate feature checkboxes (inline, smaller font)
+# F. Generate feature checkboxes (inline, smaller font)
 @app.callback(
     Output('feature-checkboxes', 'children'),
     Input('feature-list', 'data'),
@@ -295,7 +301,7 @@ def generate_feature_checkboxes(feature_list, target_col):
         )
     return checkboxes
 
-#train callback
+# G. Train callback
 @app.callback(
     Output('trained-pipeline', 'data'),
     Output('r2-score-text', 'children'),
@@ -307,28 +313,32 @@ def generate_feature_checkboxes(feature_list, target_col):
 def train_model(n_clicks, stored_data, all_feature_values, target_col):
     if not n_clicks or not stored_data or not target_col:
         return dash.no_update, "The R2 score is: N/A"
-
+    
     df = pd.DataFrame(stored_data['data'])
-    #flatten the selected features from the dynamic checklists
+    
+    # Flatten the selected features from the dynamic checklists
     selected_features = []
     for fv in all_feature_values:
         if fv:
             selected_features.extend(fv)
     selected_features = list(set(selected_features))
+    
     if len(selected_features) == 0:
         return dash.no_update, "The R2 score is: N/A (No features selected)"
-
+    
+    # Drop rows where target is missing
+    df = df.dropna(subset=[target_col])  # IMPORTANT: remove rows w/ NaN in target
+    
     X = df[selected_features].copy()
     y = df[target_col].copy()
-
+    
+    # If the target col is still empty after dropping NaN, return
+    if y.empty:
+        return dash.no_update, "The R2 score is: N/A (No valid rows after dropping NaN target)"
+    
     numeric_feats = X.select_dtypes(include=['int64','float64','int32','float32']).columns
-    cat_feats = X.select_dtypes(include=['object','category']).columns
-
-    from sklearn.compose import ColumnTransformer
-    from sklearn.pipeline import Pipeline
-    from sklearn.impute import SimpleImputer
-    from sklearn.preprocessing import OneHotEncoder
-
+    cat_feats    = X.select_dtypes(include=['object','category']).columns
+    
     transformers = []
     if len(numeric_feats) > 0:
         transformers.append(('num', SimpleImputer(strategy='mean'), numeric_feats))
@@ -342,22 +352,21 @@ def train_model(n_clicks, stored_data, all_feature_values, target_col):
              cat_feats)
         )
     preprocessor = ColumnTransformer(transformers=transformers, remainder='drop')
-
+    
     pipeline = Pipeline([
         ('preprocessor', preprocessor),
         ('model', RandomForestRegressor(n_estimators=50, random_state=42))
     ])
-
+    
     pipeline.fit(X, y)
     preds = pipeline.predict(X)
     r2 = r2_score(y, preds)
 
-    #for demonstration store placeholder
     pipeline_data = {'trained': True, 'r2': r2}
-
     return pipeline_data, f"The R2 score is: {r2:.2f}"
 
-#predict callback
+
+# H. Predict callback
 @app.callback(
     Output('predict-output-value', 'children'),
     Input('predict-button', 'n_clicks'),
@@ -371,7 +380,7 @@ def predict_value(n_clicks, input_string, pipeline_data, all_feature_values, tar
     if not n_clicks or not pipeline_data or not input_string:
         return ""
 
-    #recollect selected features
+    # Recollect selected features
     selected_features = []
     for fv in all_feature_values:
         if fv:
@@ -379,36 +388,29 @@ def predict_value(n_clicks, input_string, pipeline_data, all_feature_values, tar
     selected_features = list(set(selected_features))
 
     df = pd.DataFrame(stored_data['data'])
+
+    # Drop rows with missing target to avoid ValueError
+    df = df.dropna(subset=[target_col])
+
     X = df[selected_features].copy()
     y = df[target_col].copy()
 
     numeric_feats = X.select_dtypes(include=['int64','float64','int32','float32']).columns
     cat_feats = X.select_dtypes(include=['object','category']).columns
 
-    #re-fit pipeline
-    from sklearn.compose import ColumnTransformer
-    from sklearn.pipeline import Pipeline
-    from sklearn.impute import SimpleImputer
-    from sklearn.preprocessing import OneHotEncoder
-
-    transformers = []
-    if len(numeric_feats)>0:
-        transformers.append(('num', SimpleImputer(strategy='mean'), numeric_feats))
-    if len(cat_feats)>0:
-        transformers.append(
-            ('cat',
-             Pipeline([
-                 ('imputer', SimpleImputer(strategy='most_frequent')),
-                 ('ohe', OneHotEncoder(handle_unknown='ignore'))
-             ]),
-             cat_feats)
-        )
-    preprocessor = ColumnTransformer(transformers=transformers, remainder='drop')
+    preprocessor = ColumnTransformer(transformers=[
+        ('num', SimpleImputer(strategy='mean'), numeric_feats),
+        ('cat', Pipeline([
+            ('imputer', SimpleImputer(strategy='most_frequent')),
+            ('ohe', OneHotEncoder(handle_unknown='ignore'))
+        ]), cat_feats)
+    ], remainder='drop')
 
     pipeline = Pipeline([
         ('preprocessor', preprocessor),
         ('model', RandomForestRegressor(n_estimators=50, random_state=42))
     ])
+    # Fit the pipeline on the filtered data
     pipeline.fit(X, y)
 
     user_values = [v.strip() for v in input_string.split(',')]
@@ -426,6 +428,7 @@ def predict_value(n_clicks, input_string, pipeline_data, all_feature_values, tar
     input_df = pd.DataFrame(input_dict)
     pred = pipeline.predict(input_df)[0]
     return f"{pred:.2f}"
+
 
 if __name__ == '__main__':
     app.run_server(debug=False)
