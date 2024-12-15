@@ -14,6 +14,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.metrics import r2_score
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+server = app.server
 
 # at end of code modify and run with 
 # app.run_server(debug=True) instead of False
